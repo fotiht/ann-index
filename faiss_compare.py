@@ -44,6 +44,7 @@ if __name__ == "__main__":
     start = time.perf_counter()
     ours.add(data)
     oursBuild = time.perf_counter() - start
+    ours.search(queries[:1], args.k)  # compile the search code before timing it
 
     theirs = faiss.IndexHNSWFlat(data.shape[1], args.M)
     theirs.hnsw.efConstruction = args.efc

@@ -7,7 +7,7 @@ import numpy as np
 from numba import njit
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def sqDist(vectors, i, query):
     total = 0.0
     for d in range(query.shape[0]):

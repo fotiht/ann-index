@@ -48,6 +48,7 @@ if __name__ == "__main__":
     start = time.perf_counter()
     index.add(data)
     print(f"hnsw {args.impl} build {time.perf_counter() - start:.1f} s, memory {index.memoryBytes() / 1e6:.1f} MB")
+    index.search(queries[:1], args.k)  # compile the search code before timing it
     for ef in (10, 20, 50, 100, 200, 400):
         r = benchmark(HNSWAtEf(index, ef), data, queries, truth, args.k)
         print(f"hnsw ef={ef:<4d}  recall {r['recall']:.3f}  qps {r['qps']:.0f}")
