@@ -4,7 +4,7 @@ An approximate nearest neighbour index written from scratch in Python and NumPy.
 
 ## Status
 
-Phase 1 (baseline and benchmark harness) is done. An HNSW implementation and its tests exist and pass, but it has not yet been run on SIFT, so there are no SIFT results for it.
+Phase 1 (baseline and benchmark harness) is done, and the first HNSW results on SIFT are in. The HNSW code is pure Python for now, so speed work comes next.
 
 ## Baseline
 
@@ -16,6 +16,21 @@ Exact brute-force search on the first 100,000 SIFT base vectors (128 dimensions)
 | Exact, cosine | 1.00 | 862 | 51.2 MB |
 
 Numbers come from one 4-core server and will vary with the machine. Any index has to beat 811 queries per second at a recall close to 1.0 to be worth using at this size.
+
+## HNSW on SIFT, first results
+
+The first 20,000 SIFT base vectors, 1,000 queries, k = 10, built with M = 16 and efConstruction = 100. Exact search on the same data runs at 5,350 queries per second with recall 1.00.
+
+| ef | Recall@10 | Queries per second |
+|---|---|---|
+| 10 | 0.878 | 1,931 |
+| 20 | 0.958 | 1,350 |
+| 50 | 0.995 | 698 |
+| 100 | 0.999 | 391 |
+| 200 | 1.000 | 221 |
+| 400 | 1.000 | 120 |
+
+Recall climbs quickly with ef, and 0.995 is reached at ef = 50. At this size, though, exact search is faster than HNSW. NumPy does the exact search as one large matrix product, while the HNSW search runs in a Python loop. A graph index only pays off once the data is large enough that scanning everything gets expensive, and our Python implementation needs to get faster before the comparison at 100,000 vectors or more is fair.
 
 ## Layout
 
@@ -39,6 +54,6 @@ python -m pytest
 
 ## Next
 
-1. Run `sweep.py` on SIFT and record the recall and speed curve for HNSW.
-2. Speed up the distance calls (Numba or batched NumPy).
-3. Compare with FAISS HNSW on the same data. We do not expect to beat it.
+1. Speed up the distance calls (Numba or batched NumPy) and re-run the sweep at 100,000 vectors.
+2. Compare with FAISS HNSW on the same data. We do not expect to beat it.
+3. Report build time and memory for HNSW next to the exact baseline.
