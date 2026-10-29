@@ -4,7 +4,7 @@ An approximate nearest neighbour index written from scratch in Python and NumPy.
 
 ## Status
 
-Phase 2 (speed) is done. The first HNSW version was pure Python and slower than exact search. A Numba version of the same algorithm now beats exact search on the 100,000-vector SIFT subset. Next is the comparison with FAISS.
+Phases 1 to 3 are done: exact baseline, an HNSW index in Python and in Numba, and a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors. At equal recall our index is about 2 to 2.5 times slower than FAISS and takes about 3 times as long to build. It is 14 times faster than exact search at 1,000,000 vectors.
 
 ## Baseline
 
@@ -32,6 +32,36 @@ The Numba implementation (`annindex/hnsw_fast.py`) on the first 100,000 SIFT bas
 
 At a recall of 0.996 the index answers 1.8 times as many queries per second as exact search, and at 0.978 it answers 3.2 times as many. Past ef = 200 the extra recall costs more than exact search saves. The gap should widen on the full million vectors, since exact search slows down in proportion to the data while HNSW search slows down much less. We have not run that yet.
 
+## Comparison with FAISS
+
+FAISS `IndexHNSWFlat` against our Numba index, same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index.
+
+100,000 vectors. Build: ours 81 s and 61.9 MB, FAISS 21 s and 65.6 MB. Exact search: 880 queries per second.
+
+| ef | Ours: recall, queries per second | FAISS: recall, queries per second |
+|---|---|---|
+| 10 | 0.833, 7,522 | 0.783, 24,676 |
+| 20 | 0.921, 5,565 | 0.892, 15,327 |
+| 50 | 0.982, 2,990 | 0.974, 7,718 |
+| 100 | 0.997, 1,775 | 0.994, 4,422 |
+| 200 | 1.000, 1,046 | 0.999, 2,235 |
+| 400 | 1.000, 614 | 1.000, 1,268 |
+
+1,000,000 vectors (the full SIFT base set). Build: ours 1,167 s and 618.5 MB, FAISS 365 s and 656.3 MB. The raw vectors take 512 MB. Exact search: 88 queries per second.
+
+| ef | Ours: recall, queries per second | FAISS: recall, queries per second |
+|---|---|---|
+| 10 | 0.710, 5,239 | 0.684, 12,217 |
+| 20 | 0.836, 4,042 | 0.814, 9,692 |
+| 50 | 0.943, 2,172 | 0.929, 4,801 |
+| 100 | 0.979, 1,265 | 0.974, 2,767 |
+| 200 | 0.993, 711 | 0.992, 1,516 |
+| 400 | 0.997, 398 | 0.998, 787 |
+
+Two things stand out. At the same ef our recall is a little higher, mostly because our search uses a single entry point per layer and keeps ef candidates in the final layer, while FAISS stops earlier, so the same ef is not exactly the same amount of work. Judged at equal recall, FAISS answers about 2 to 2.5 times as many queries per second. At 1,000,000 vectors our index reaches recall 0.979 at 1,265 queries per second, 14 times faster than exact search, and FAISS reaches 0.974 at 2,767.
+
+The gap to FAISS is expected. FAISS is tuned C++ with vectorized distance code, while ours is Numba code that computes each distance with a plain loop.
+
 ## Speed work
 
 The pure Python version (`annindex/hnsw.py`) gave the same recall at every ef value but ran slowly. On 20,000 vectors at ef = 50 it handled 698 queries per second, against 4,409 for the Numba version (6.3 times faster), with identical recall of 0.995. Exact search was faster than the Python version at that size, because NumPy runs it as one large matrix product while the Python search loops one step at a time. Batching the neighbour selection step in NumPy cut the Python build time roughly in half, but most of the gain came from compiling the search and insert loops with Numba. The Python version stays in the repo as a readable reference.
@@ -45,6 +75,7 @@ The pure Python version (`annindex/hnsw.py`) gave the same recall at every ef va
 - `annindex/data.py`: reads SIFT `.fvecs` files and makes random data.
 - `bench.py`: build time, queries per second, recall and memory for any index.
 - `sweep.py`: recall against queries per second for several values of `ef`.
+- `faiss_compare.py`: our index against FAISS HNSW on the same data.
 - `tests/`: checks against brute force.
 
 ## Reproduce
@@ -55,11 +86,12 @@ Download `sift.tar.gz` from `ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz`
 tar -xzf sift.tar.gz -C data sift/sift_base.fvecs sift/sift_query.fvecs
 python bench.py --base data/sift/sift_base.fvecs --query data/sift/sift_query.fvecs --n 100000
 python sweep.py --base data/sift/sift_base.fvecs --query data/sift/sift_query.fvecs --n 100000
+python faiss_compare.py --n 100000
 python -m pytest
 ```
 
-## Next
+## Possible next steps
 
-1. Compare with FAISS HNSW on the same data and parameters. We do not expect to beat it.
-2. Run the sweep on all 1,000,000 vectors.
-3. Optional: product quantization to cut the memory.
+1. Use SIMD-friendly distance code or multiple threads to narrow the gap to FAISS.
+2. Product quantization to reduce memory.
+3. Test other datasets, such as GloVe, where the data is harder than SIFT.
