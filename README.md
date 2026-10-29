@@ -4,7 +4,7 @@ An approximate nearest neighbour index written from scratch in Python and NumPy.
 
 ## Status
 
-Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.3 to 1.8 times slower than FAISS on one thread. It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, the picture is the same but recall is much lower for the same ef.
+Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.3 to 1.8 times slower than FAISS on one thread. It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, the picture is the same but recall is much lower for the same ef, and at very high recall (ef = 3,200) our index matches or passes FAISS.
 
 ## Baseline
 
@@ -61,6 +61,9 @@ GloVe word vectors (100 dimensions, 1,183,514 base vectors, cosine distance) fro
 | 100 | 0.875, 2,404 | 0.865, 3,902 |
 | 200 | 0.927, 1,287 | 0.919, 2,076 |
 | 400 | 0.967, 724 | 0.958, 1,062 |
+| 800 | 0.989, 370 | 0.985, 489 |
+| 1,600 | 0.997, 171 | 0.994, 186 |
+| 3,200 | 1.000, 98 | 0.998, 80 |
 
 All 1,183,514 vectors. Build: ours 842 s and 594.5 MB, FAISS 457 s and 644.2 MB. The raw vectors take 473 MB. Exact search: 60 queries per second.
 
@@ -72,8 +75,15 @@ All 1,183,514 vectors. Build: ours 842 s and 594.5 MB, FAISS 457 s and 644.2 MB.
 | 100 | 0.804, 1,766 | 0.788, 2,899 |
 | 200 | 0.863, 979 | 0.849, 1,547 |
 | 400 | 0.905, 529 | 0.898, 836 |
+| 800 | 0.938, 284 | 0.931, 412 |
+| 1,600 | 0.966, 148 | 0.959, 183 |
+| 3,200 | 0.983, 77 | 0.975, 71 |
 
-GloVe is much harder than SIFT. On 100,000 vectors ef = 100 gives recall 0.875, where SIFT gave 0.997, and on the full set it takes ef = 400 to pass 0.9. The word vectors have no clear clusters, so the graph search has to visit far more points to find the true neighbours. Even so, our index at ef = 100 on the full set answers 1,766 queries per second at recall 0.804, which is 29 times faster than exact search. The gap to FAISS is the same as on SIFT, about 1.4 to 1.6 times at equal recall, with our recall slightly higher at the same ef. We did not sweep ef above 400, so we do not know how many queries per second each library handles at recall 0.95 on the full set.
+GloVe is much harder than SIFT. On 100,000 vectors ef = 100 gives recall 0.875, where SIFT gave 0.997, and on the full set it takes ef = 400 to pass 0.9. The word vectors have no clear clusters, so the graph search has to visit far more points to find the true neighbours. Even so, our index at ef = 100 on the full set answers 1,766 queries per second at recall 0.804, which is 29 times faster than exact search. The gap to FAISS is the same as on SIFT, about 1.4 to 1.6 times at equal recall, with our recall slightly higher at the same ef.
+
+The rows for ef = 800 and above come from a second run (`results/glove_100k_high_ef.log` and `results/glove_full_high_ef.log`), so the numbers for ef = 100 and 400 there differ slightly from the first run. At very high recall the gap closes. On the full set, recall 0.966 takes 148 queries per second with our index and 183 with FAISS at ef = 1,600, but at ef = 3,200 ours reaches 0.983 at 77 queries per second against 0.975 at 71 for FAISS. At 100,000 vectors ours reaches recall 1.000 at 98 queries per second against 0.998 at 80. We have not checked why the curves cross. Exact search matters here too: at 100,000 vectors it handles 865 queries per second, which is faster than either index once recall is above about 0.95 (at ef = 400 ours reaches 0.967 at 724). On the full set exact search handles 60 queries per second, so the graph index is still ahead there, though only by a little at ef = 3,200.
+
+![Recall against queries per second, SIFT and GloVe, ours and FAISS](results/recall_vs_qps.png)
 
 ## Threads
 
@@ -123,6 +133,7 @@ Three changes made the difference, in this order. Batching the neighbour selecti
 - `bench.py`: build time, queries per second, recall and memory for any index.
 - `sweep.py`: recall against queries per second for several values of `ef`.
 - `faiss_compare.py`: our index against FAISS HNSW on the same data.
+- `plot_results.py`: recall against queries per second plots from the logs in `results/`.
 - `pq_bench.py`: recall, speed and memory with product quantization.
 - `tests/`: checks against brute force.
 
@@ -136,11 +147,11 @@ python bench.py --base data/sift/sift_base.fvecs --query data/sift/sift_query.fv
 python sweep.py --base data/sift/sift_base.fvecs --query data/sift/sift_query.fvecs --n 100000
 python faiss_compare.py --n 100000 --threads 4
 python pq_bench.py
+python plot_results.py
 python -m pytest
 ```
 
 ## Possible next steps
 
-1. Sweep ef higher on GloVe and compare the libraries at recall 0.95 and above.
-2. Hand-written SIMD distance code and parallel linking in the build.
-3. Store the raw vectors on disk for the re-score in the compressed index.
+1. Hand-written SIMD distance code and parallel linking in the build.
+2. Store the raw vectors on disk for the re-score in the compressed index.

@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("--M", type=int, default=16)
     parser.add_argument("--efc", type=int, default=100)
     parser.add_argument("--threads", type=int, default=1, help="threads used for building and searching, for both indexes")
+    parser.add_argument("--efs", type=int, nargs="+", default=EF_VALUES, help="ef values to sweep")
     args = parser.parse_args()
 
     faiss.omp_set_num_threads(args.threads)
@@ -68,7 +69,7 @@ if __name__ == "__main__":
     print(f"build: ours {oursBuild:.1f} s, {ours.memoryBytes() / 1e6:.1f} MB | "
           f"FAISS {theirsBuild:.1f} s, {faiss.serialize_index(theirs).nbytes / 1e6:.1f} MB")
     print("ef    ours recall / qps       FAISS recall / qps")
-    for ef in EF_VALUES:
+    for ef in args.efs:
         oursQps, found = queriesPerSecond(lambda q: ours.search(q, args.k, ef, args.threads), queries)
         oursRecall = recall_at_k(found, truth, args.k)
         theirs.hnsw.efSearch = ef

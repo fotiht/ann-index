@@ -1,0 +1,7 @@
+glove, n = 1183514, M = 16, efConstruction = 100, 1 thread(s)
+build: ours 835.9 s, 594.5 MB | FAISS 440.5 s, 644.2 MB
+ef    ours recall / qps       FAISS recall / qps
+400   0.905 /     535        0.898 /     839
+800   0.938 /     284        0.931 /     412
+1600  0.966 /     148        0.959 /     183
+3200  0.983 /      77        0.975 /      71
