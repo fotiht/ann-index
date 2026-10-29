@@ -21,16 +21,16 @@ Numbers come from one 4-core server and vary a little from run to run (880 queri
 
 FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index.
 
-100,000 vectors. Build: ours 36.7 s and 61.9 MB, FAISS 20.4 s and 65.6 MB. Exact search: about 880 queries per second.
+100,000 vectors. Build: ours 37.9 s and 61.9 MB, FAISS 21.1 s and 65.6 MB. Exact search: about 880 queries per second.
 
 | ef | Ours: recall, queries per second | FAISS: recall, queries per second |
 |---|---|---|
-| 10 | 0.833, 14,241 | 0.783, 24,284 |
-| 20 | 0.921, 8,833 | 0.892, 15,862 |
-| 50 | 0.982, 4,622 | 0.974, 7,709 |
-| 100 | 0.997, 2,600 | 0.994, 4,359 |
-| 200 | 1.000, 1,537 | 0.999, 2,453 |
-| 400 | 1.000, 876 | 1.000, 1,270 |
+| 10 | 0.833, 13,672 | 0.783, 25,067 |
+| 20 | 0.921, 9,091 | 0.892, 16,499 |
+| 50 | 0.982, 4,552 | 0.974, 8,101 |
+| 100 | 0.997, 2,654 | 0.994, 4,590 |
+| 200 | 1.000, 1,500 | 0.999, 2,410 |
+| 400 | 1.000, 873 | 1.000, 1,290 |
 
 1,000,000 vectors (the full SIFT base set). Build: ours 586 s and 618.5 MB, FAISS 332 s and 656.3 MB. The raw vectors take 512 MB. Exact search: 88 queries per second.
 
