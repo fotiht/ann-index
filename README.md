@@ -75,7 +75,7 @@ Product quantization (`annindex/pq.py`) splits each 128 dimensional vector into 
 | 16 | 12.5 MB | 0.618 | 0.986 at ef = 100 |
 | 32 | 14.1 MB | 0.756 | 0.995 at ef = 100 |
 
-Searching through codes alone is limited by the quantization error. Recall stays at 0.62 (16 pieces) and 0.76 (32 pieces) however large ef is, which matches a full scan of the same codes. Re-scoring the candidates with the raw vectors restores recall to 0.986 and 0.995, and it is still faster than the raw search (5,093 queries per second against 2,957 at ef = 100 with 16 pieces) because code lookups are cheaper than 128 dimensional distances. The catch is that the raw vectors are still needed for the re-score, for example on disk, so this saves memory only if they are kept off the main memory. Full numbers for each ef value are in `pq_100k.log`.
+Searching through codes alone is limited by the quantization error. Recall stays at 0.62 (16 pieces) and 0.76 (32 pieces) however large ef is, which matches a full scan of the same codes. Re-scoring the candidates with the raw vectors restores recall to 0.986 and 0.995, and it is still faster than the raw search (5,093 queries per second against 2,957 at ef = 100 with 16 pieces) because code lookups are cheaper than 128 dimensional distances. The catch is that the raw vectors are still needed for the re-score, for example on disk, so this saves memory only if they are kept off the main memory. Full numbers for each ef value are in `results/pq_100k.log`.
 
 ## Speed work
 
