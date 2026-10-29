@@ -3,7 +3,10 @@ import argparse
 
 from annindex.data import random_data, read_fvecs
 from annindex.exact import exact_knn
+import time
+
 from annindex.hnsw import HNSW
+from annindex.hnsw_fast import HNSWFast
 from bench import ExactIndex, benchmark
 
 
@@ -29,6 +32,7 @@ if __name__ == "__main__":
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--M", type=int, default=16)
     parser.add_argument("--efc", type=int, default=100)
+    parser.add_argument("--impl", choices=["python", "fast"], default="fast")
     args = parser.parse_args()
 
     if args.base:
@@ -40,8 +44,10 @@ if __name__ == "__main__":
     exact = benchmark(ExactIndex(), data, queries, truth, args.k)
     print(f"exact          recall {exact['recall']:.3f}  qps {exact['qps']:.0f}")
 
-    index = HNSW(M=args.M, efConstruction=args.efc)
+    index = (HNSW if args.impl == "python" else HNSWFast)(M=args.M, efConstruction=args.efc)
+    start = time.perf_counter()
     index.add(data)
+    print(f"hnsw {args.impl} build {time.perf_counter() - start:.1f} s, memory {index.memoryBytes() / 1e6:.1f} MB")
     for ef in (10, 20, 50, 100, 200, 400):
         r = benchmark(HNSWAtEf(index, ef), data, queries, truth, args.k)
         print(f"hnsw ef={ef:<4d}  recall {r['recall']:.3f}  qps {r['qps']:.0f}")

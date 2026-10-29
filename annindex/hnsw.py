@@ -27,11 +27,12 @@ class HNSW:
         return x
 
     def _dist(self, query, ids):
-        diff = self.vectors[ids] - query
-        return np.einsum("ij,ij->i", diff, diff)
+        """Squared distances from query to the stored vectors `ids`."""
+        return self.sqNorms[ids] - 2 * (self.vectors[ids] @ query) + query @ query
 
     def add(self, data):
         self.vectors = self._prepare(data)
+        self.sqNorms = np.einsum("ij,ij->i", self.vectors, self.vectors)
         for node in range(len(self.vectors)):
             self._insert(node)
 
@@ -68,7 +69,7 @@ class HNSW:
         """Best-first search of one layer. Returns up to ef ids, closest first."""
         graph = self.layers[l]
         visited = set(entryPoints)
-        dists = self._dist(query, entryPoints)
+        dists = self._dist(query, entryPoints).tolist()
         toVisit = list(zip(dists, entryPoints))  # min-heap: closest first
         heapq.heapify(toVisit)
         best = [(-d, i) for d, i in toVisit]  # max-heap of the ef closest
@@ -81,7 +82,7 @@ class HNSW:
             if not fresh:
                 continue
             visited.update(fresh)
-            for nd, n in zip(self._dist(query, fresh), fresh):
+            for nd, n in zip(self._dist(query, fresh).tolist(), fresh):
                 if len(best) < ef or nd < -best[0][0]:
                     heapq.heappush(toVisit, (nd, n))
                     heapq.heappush(best, (-nd, n))
@@ -91,22 +92,25 @@ class HNSW:
 
     def _selectNeighbours(self, node, candidates, count):
         """Keep a candidate only if it is closer to the node than to any already kept."""
-        query = self.vectors[node]
         candidates = [c for c in candidates if c != node]
-        kept = []
-        for c in candidates:  # closest first
+        if not candidates:
+            return []
+        points = self.vectors[candidates]
+        toNode = self._dist(self.vectors[node], candidates)
+        # squared distances between every pair of candidates, computed in one product
+        norms = self.sqNorms[candidates]
+        between = norms[:, None] + norms[None, :] - 2 * points @ points.T
+        kept = []  # positions in `candidates`, closest first
+        for i in range(len(candidates)):  # closest first
             if len(kept) == count:
                 break
-            dNode = self._dist(query, [c])[0]
-            if not kept or dNode < self._dist(self.vectors[c], kept).min():
-                kept.append(c)
+            if not kept or toNode[i] < between[i, kept].min():
+                kept.append(i)
         # top up with the nearest rejected ones if the heuristic kept too few
-        for c in candidates:
-            if len(kept) == count:
-                break
-            if c not in kept:
-                kept.append(c)
-        return kept
+        if len(kept) < count:
+            chosen = set(kept)
+            kept += [i for i in range(len(candidates)) if i not in chosen][:count - len(kept)]
+        return [candidates[i] for i in kept]
 
     def _link(self, a, b, l):
         links = self.layers[l][a]
