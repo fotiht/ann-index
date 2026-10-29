@@ -14,6 +14,9 @@ class HNSWAtEf:
     def add(self, data):
         pass  # the index is already built
 
+    def memoryBytes(self):
+        return self.index.memoryBytes()
+
     def search(self, queries, k):
         return self.index.search(queries, k, self.ef)
 

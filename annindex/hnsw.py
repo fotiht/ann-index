@@ -116,6 +116,10 @@ class HNSW:
             order = np.argsort(self._dist(self.vectors[a], links))
             self.layers[l][a] = self._selectNeighbours(a, [links[i] for i in order], limit)
 
+    def memoryBytes(self):
+        links = sum(len(l) for layer in self.layers for l in layer.values())
+        return self.vectors.nbytes + 8 * links  # 8 bytes per stored link id
+
     def search(self, queries, k, ef=50):
         queries = self._prepare(queries)
         result = np.full((len(queries), k), -1, dtype=np.int64)

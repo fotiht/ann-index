@@ -1,12 +1,11 @@
 """Benchmark an index: build time, queries per second, recall@k, memory.
 
-An index is any object with add(data) and search(queries, k) -> indices.
+An index is any object with add(data), search(queries, k) -> indices and memoryBytes().
 Run `python bench.py` to benchmark the exact baseline on random data, or
 pass --base and --query .fvecs files (for example SIFT) to use real data.
 """
 import argparse
 import time
-import tracemalloc
 
 import numpy as np
 
@@ -22,17 +21,17 @@ class ExactIndex:
     def add(self, data):
         self.data = np.asarray(data, dtype=np.float32)
 
+    def memoryBytes(self):
+        return self.data.nbytes
+
     def search(self, queries, k):
         return exact_knn(self.data, queries, k, self.metric)
 
 
 def benchmark(index, data, queries, truth, k):
-    tracemalloc.start()
     start = time.perf_counter()
     index.add(data)
     buildSeconds = time.perf_counter() - start
-    peakMegabytes = tracemalloc.get_traced_memory()[1] / 1e6
-    tracemalloc.stop()
 
     start = time.perf_counter()
     found = index.search(queries, k)
@@ -41,7 +40,7 @@ def benchmark(index, data, queries, truth, k):
         "build_s": buildSeconds,
         "qps": len(queries) / querySeconds,
         "recall": recall_at_k(found, truth, k),
-        "peak_MB": peakMegabytes,
+        "memory_MB": index.memoryBytes() / 1e6,
     }
 
 

@@ -3,9 +3,9 @@ import numpy as np
 
 def read_fvecs(path, limit=None):
     """Read a .fvecs file (SIFT format): each row is an int32 dimension, then floats."""
-    raw = np.fromfile(path, dtype=np.int32)
-    dim = raw[0]
-    rows = raw.reshape(-1, dim + 1)[:limit]
+    dim = np.fromfile(path, dtype=np.int32, count=1)[0]
+    count = -1 if limit is None else limit * (dim + 1)
+    rows = np.fromfile(path, dtype=np.int32, count=count).reshape(-1, dim + 1)
     return rows[:, 1:].copy().view(np.float32)
 
 
