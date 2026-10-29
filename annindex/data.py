@@ -11,3 +11,13 @@ def read_fvecs(path, limit=None):
 
 def random_data(n, dim, seed=0):
     return np.random.default_rng(seed).standard_normal((n, dim)).astype(np.float32)
+
+
+def read_ann_benchmarks(path, limit=None, queries=1000):
+    """Read an ann-benchmarks .hdf5 file (for example GloVe). Returns the base vectors, the
+    first `queries` query vectors, and the shipped true neighbours of those queries, which are
+    only valid when the whole base set is used."""
+    import h5py
+    with h5py.File(path, "r") as f:
+        base = f["train"][:limit] if limit else f["train"][:]
+        return base, f["test"][:queries], f["neighbors"][:queries]

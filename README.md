@@ -4,7 +4,7 @@ An approximate nearest neighbour index written from scratch in Python and NumPy.
 
 ## Status
 
-Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.3 to 1.8 times slower than FAISS on one thread. It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. A harder dataset (GloVe) is still to do.
+Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.3 to 1.8 times slower than FAISS on one thread. It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, the picture is the same but recall is much lower for the same ef.
 
 ## Baseline
 
@@ -46,6 +46,34 @@ FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same da
 At the same ef our recall is a little higher. We have not checked why, but the two libraries may not do the same amount of work for the same ef, so the fair comparison is recall against speed. Judged that way, FAISS answers about 1.3 times as many queries per second at 100,000 vectors and about 1.5 times as many at 1,000,000. At 1,000,000 vectors our index reaches recall 0.979 at 1,771 queries per second, 20 times faster than exact search.
 
 A remaining gap to FAISS is expected. FAISS is tuned C++ with hand-vectorized distance code, while ours is Numba code with a plain loop for each distance.
+
+## GloVe, a harder dataset
+
+GloVe word vectors (100 dimensions, 1,183,514 base vectors, cosine distance) from ann-benchmarks. Same parameters (M = 16, efConstruction = 100), one thread, 1,000 queries, k = 10. FAISS gets unit-length vectors, since cosine ranking equals Euclidean ranking on those. Run with `python faiss_compare.py --dataset glove --n 100000`; logs are in `results/`.
+
+100,000 vectors. Build: ours 49.9 s and 50.4 MB, FAISS 24.0 s and 54.4 MB. Exact search: 865 queries per second.
+
+| ef | Ours: recall, queries per second | FAISS: recall, queries per second |
+|---|---|---|
+| 10 | 0.555, 14,496 | 0.542, 23,936 |
+| 20 | 0.677, 8,871 | 0.669, 14,167 |
+| 50 | 0.803, 4,353 | 0.795, 7,197 |
+| 100 | 0.875, 2,404 | 0.865, 3,902 |
+| 200 | 0.927, 1,287 | 0.919, 2,076 |
+| 400 | 0.967, 724 | 0.958, 1,062 |
+
+All 1,183,514 vectors. Build: ours 842 s and 594.5 MB, FAISS 457 s and 644.2 MB. The raw vectors take 473 MB. Exact search: 60 queries per second.
+
+| ef | Ours: recall, queries per second | FAISS: recall, queries per second |
+|---|---|---|
+| 10 | 0.463, 8,481 | 0.449, 14,975 |
+| 20 | 0.590, 5,906 | 0.574, 9,564 |
+| 50 | 0.727, 3,016 | 0.712, 4,999 |
+| 100 | 0.804, 1,766 | 0.788, 2,899 |
+| 200 | 0.863, 979 | 0.849, 1,547 |
+| 400 | 0.905, 529 | 0.898, 836 |
+
+GloVe is much harder than SIFT. On 100,000 vectors ef = 100 gives recall 0.875, where SIFT gave 0.997, and on the full set it takes ef = 400 to pass 0.9. The word vectors have no clear clusters, so the graph search has to visit far more points to find the true neighbours. Even so, our index at ef = 100 on the full set answers 1,766 queries per second at recall 0.804, which is 29 times faster than exact search. The gap to FAISS is the same as on SIFT, about 1.4 to 1.6 times at equal recall, with our recall slightly higher at the same ef. We did not sweep ef above 400, so we do not know how many queries per second each library handles at recall 0.95 on the full set.
 
 ## Threads
 
@@ -113,6 +141,6 @@ python -m pytest
 
 ## Possible next steps
 
-1. Run the same comparison on GloVe, where the data is harder than SIFT.
+1. Sweep ef higher on GloVe and compare the libraries at recall 0.95 and above.
 2. Hand-written SIMD distance code and parallel linking in the build.
 3. Store the raw vectors on disk for the re-score in the compressed index.
