@@ -4,7 +4,7 @@ An approximate nearest neighbour index written from scratch in Python and NumPy.
 
 ## Status
 
-Phases 1 to 3 are done: an exact baseline, an HNSW index in Python and in Numba, and a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors. At equal recall our index is about 1.3 to 1.8 times slower than FAISS and takes about 1.8 times as long to build. It is 20 times faster than exact search at 1,000,000 vectors.
+Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.3 to 1.8 times slower than FAISS on one thread. It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. A harder dataset (GloVe) is still to do.
 
 ## Baseline
 
@@ -47,6 +47,36 @@ At the same ef our recall is a little higher. We have not checked why, but the t
 
 A remaining gap to FAISS is expected. FAISS is tuned C++ with hand-vectorized distance code, while ours is Numba code with a plain loop for each distance.
 
+## Threads
+
+`HNSWFast.add(data, threads=4)` and `HNSWFast.search(queries, k, ef, threads=4)` use several threads. Searching splits the queries into chunks, one per thread, and returns the same answers as one thread. Building inserts the points in batches of 64. Each batch looks for neighbours in parallel against the graph built so far and is then linked in order, so points in the same batch do not see each other. That cost almost no recall (0.981 against 0.982 at ef = 50), and the first 2,000 points go in one at a time.
+
+Four threads on 100,000 vectors, same parameters as above. Build: ours 22.8 s (37 s on one thread), FAISS 6.3 s.
+
+| ef | Ours: recall, queries per second | FAISS: recall, queries per second |
+|---|---|---|
+| 10 | 0.831, 29,388 | 0.783, 49,016 |
+| 20 | 0.918, 18,653 | 0.892, 47,934 |
+| 50 | 0.981, 13,312 | 0.974, 23,288 |
+| 100 | 0.997, 7,643 | 0.994, 13,372 |
+| 200 | 1.000, 4,413 | 0.999, 7,484 |
+| 400 | 1.000, 2,547 | 1.000, 4,004 |
+
+Search speed grows about 3 to 4 times with four threads for both libraries, so the gap to FAISS stays the same. Multi-thread timings on this shared server vary by 20 to 30 percent between runs. The build gains less than the search because linking each batch is still done in order.
+
+## Product quantization
+
+Product quantization (`annindex/pq.py`) splits each 128 dimensional vector into pieces, here 16 or 32, and replaces each piece by the number of its nearest centroid out of 256, found by k-means on 20,000 training vectors. A 512 byte vector becomes 16 or 32 bytes. A search computes a small table of distances from the query to every centroid, and the distance to a stored vector is then a sum of table lookups.
+
+`annindex/hnsw_pq.py` searches the HNSW graph with these distances, so the raw vectors are not needed during the search. Results on 100,000 vectors, one thread. Raw vectors take 51.2 MB and the raw index with its graph takes 61.9 MB.
+
+| Pieces | Memory (codes, codebooks, graph) | Recall from codes alone | Recall with a re-score of the ef candidates |
+|---|---|---|---|
+| 16 | 12.5 MB | 0.618 | 0.986 at ef = 100 |
+| 32 | 14.1 MB | 0.756 | 0.995 at ef = 100 |
+
+Searching through codes alone is limited by the quantization error. Recall stays at 0.62 (16 pieces) and 0.76 (32 pieces) however large ef is, which matches a full scan of the same codes. Re-scoring the candidates with the raw vectors restores recall to 0.986 and 0.995, and it is still faster than the raw search (5,093 queries per second against 2,957 at ef = 100 with 16 pieces) because code lookups are cheaper than 128 dimensional distances. The catch is that the raw vectors are still needed for the re-score, for example on disk, so this saves memory only if they are kept off the main memory. Full numbers for each ef value are in `pq_100k.log`.
+
 ## Speed work
 
 The pure Python version (`annindex/hnsw.py`) gives the same recall as the Numba version at every ef value but runs far slower. On 20,000 vectors at ef = 50 it handled 698 queries per second, against 4,409 for the first Numba version (6.3 times faster). Exact search was faster than the Python version at that size, because NumPy runs it as one large matrix product while the Python search takes one step at a time.
@@ -58,11 +88,14 @@ Three changes made the difference, in this order. Batching the neighbour selecti
 - `annindex/exact.py`: exact k-NN search for Euclidean and cosine distance.
 - `annindex/hnsw.py`: the HNSW index in plain Python, kept as a readable reference.
 - `annindex/hnsw_fast.py`: the same algorithm with the graph in NumPy arrays and Numba-compiled loops.
+- `annindex/pq.py`: product quantization, plus a scan over the codes.
+- `annindex/hnsw_pq.py`: search the HNSW graph through PQ codes.
 - `annindex/metrics.py`: recall@k.
 - `annindex/data.py`: reads SIFT `.fvecs` files and makes random data.
 - `bench.py`: build time, queries per second, recall and memory for any index.
 - `sweep.py`: recall against queries per second for several values of `ef`.
 - `faiss_compare.py`: our index against FAISS HNSW on the same data.
+- `pq_bench.py`: recall, speed and memory with product quantization.
 - `tests/`: checks against brute force.
 
 ## Reproduce
@@ -73,12 +106,13 @@ Download `sift.tar.gz` from `ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz`
 tar -xzf sift.tar.gz -C data sift/sift_base.fvecs sift/sift_query.fvecs sift/sift_groundtruth.ivecs
 python bench.py --base data/sift/sift_base.fvecs --query data/sift/sift_query.fvecs --n 100000
 python sweep.py --base data/sift/sift_base.fvecs --query data/sift/sift_query.fvecs --n 100000
-python faiss_compare.py --n 100000
+python faiss_compare.py --n 100000 --threads 4
+python pq_bench.py
 python -m pytest
 ```
 
 ## Possible next steps
 
-1. Multiple threads for building and searching, or hand-written SIMD distance code, to narrow the gap to FAISS.
-2. Product quantization to reduce memory.
-3. Other datasets, such as GloVe, where the data is harder than SIFT.
+1. Run the same comparison on GloVe, where the data is harder than SIFT.
+2. Hand-written SIMD distance code and parallel linking in the build.
+3. Store the raw vectors on disk for the re-score in the compressed index.

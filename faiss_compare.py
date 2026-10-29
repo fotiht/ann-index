@@ -1,6 +1,6 @@
 """Compare our HNSW (Numba) with FAISS IndexHNSWFlat on the same SIFT data and parameters.
 
-Both run on one thread. Memory for FAISS is the size of the serialized index.
+Both build and search on --threads threads. Memory for FAISS is the size of the serialized index.
 """
 import argparse
 import time
@@ -31,9 +31,10 @@ if __name__ == "__main__":
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--M", type=int, default=16)
     parser.add_argument("--efc", type=int, default=100)
+    parser.add_argument("--threads", type=int, default=1, help="threads used for building and searching, for both indexes")
     args = parser.parse_args()
 
-    faiss.omp_set_num_threads(1)
+    faiss.omp_set_num_threads(args.threads)
     data, queries = read_fvecs(args.base, args.n), read_fvecs(args.query, 1000)
     if args.n == 1_000_000:  # SIFT ships the exact neighbours for the full set
         truth = np.fromfile(args.truth, dtype=np.int32).reshape(-1, 101)[:1000, 1:]
@@ -42,9 +43,9 @@ if __name__ == "__main__":
 
     ours = HNSWFast(M=args.M, efConstruction=args.efc)
     start = time.perf_counter()
-    ours.add(data)
+    ours.add(data, args.threads)
     oursBuild = time.perf_counter() - start
-    ours.search(queries[:1], args.k)  # compile the search code before timing it
+    ours.search(queries[:8], args.k, 50, args.threads)  # compile the search code before timing it
 
     theirs = faiss.IndexHNSWFlat(data.shape[1], args.M)
     theirs.hnsw.efConstruction = args.efc
@@ -52,12 +53,12 @@ if __name__ == "__main__":
     theirs.add(data)
     theirsBuild = time.perf_counter() - start
 
-    print(f"n = {args.n}, M = {args.M}, efConstruction = {args.efc}, one thread")
+    print(f"n = {args.n}, M = {args.M}, efConstruction = {args.efc}, {args.threads} thread(s)")
     print(f"build: ours {oursBuild:.1f} s, {ours.memoryBytes() / 1e6:.1f} MB | "
           f"FAISS {theirsBuild:.1f} s, {faiss.serialize_index(theirs).nbytes / 1e6:.1f} MB")
     print("ef    ours recall / qps       FAISS recall / qps")
     for ef in EF_VALUES:
-        oursQps, found = queriesPerSecond(lambda q: ours.search(q, args.k, ef), queries)
+        oursQps, found = queriesPerSecond(lambda q: ours.search(q, args.k, ef, args.threads), queries)
         oursRecall = recall_at_k(found, truth, args.k)
         theirs.hnsw.efSearch = ef
         theirsQps, (_, found) = queriesPerSecond(lambda q: theirs.search(q, args.k), queries)

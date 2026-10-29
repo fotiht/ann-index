@@ -32,3 +32,23 @@ def test_links_respect_limits_and_are_valid():
             assert len(links) <= limit
             assert node not in links and len(set(links)) == len(links)
             assert all(0 <= n < 500 for n in links)
+
+
+def test_threads_give_the_same_answers():
+    data, queries = random_data(2000, 16), random_data(100, 16, seed=1)
+    index = HNSWFast(M=12, efConstruction=100)
+    index.add(data)
+    assert (index.search(queries, 10, ef=50) == index.search(queries, 10, ef=50, threads=3)).all()
+
+
+def test_threaded_build_keeps_recall_and_valid_links():
+    data, queries = random_data(4000, 16), random_data(100, 16, seed=1)
+    index = HNSWFast(M=12, efConstruction=100)
+    index.add(data, threads=3)
+    truth = exact_knn(data, queries, 10)
+    assert recall_at_k(index.search(queries, 10, ef=100), truth, 10) > 0.9
+    for layer in range(index.counts.shape[0]):
+        limit = 2 * index.M if layer == 0 else index.M
+        for node in range(len(data)):
+            links = index.links[layer, node, :index.counts[layer, node]]
+            assert len(links) <= limit and node not in links and len(set(links)) == len(links)
