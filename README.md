@@ -58,7 +58,7 @@ FAISS `IndexHNSWFlat` against our Numba index, same data and parameters (M = 16,
 | 200 | 0.993, 711 | 0.992, 1,516 |
 | 400 | 0.997, 398 | 0.998, 787 |
 
-Two things stand out. At the same ef our recall is a little higher, mostly because our search uses a single entry point per layer and keeps ef candidates in the final layer, while FAISS stops earlier, so the same ef is not exactly the same amount of work. Judged at equal recall, FAISS answers about 2 to 2.5 times as many queries per second. At 1,000,000 vectors our index reaches recall 0.979 at 1,265 queries per second, 14 times faster than exact search, and FAISS reaches 0.974 at 2,767.
+Two things stand out. At the same ef our recall is a little higher. We have not checked why, but the two libraries may not do the same amount of work for the same ef, so the fair comparison is recall against speed. Judged at equal recall, FAISS answers about 2 to 2.5 times as many queries per second. At 1,000,000 vectors our index reaches recall 0.979 at 1,265 queries per second, 14 times faster than exact search, and FAISS reaches 0.974 at 2,767.
 
 The gap to FAISS is expected. FAISS is tuned C++ with vectorized distance code, while ours is Numba code that computes each distance with a plain loop.
 
