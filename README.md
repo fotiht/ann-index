@@ -100,7 +100,7 @@ Four threads on 100,000 vectors, same parameters as above. Build: ours 15 s afte
 | 200 | 1.000, 4,413 | 0.999, 7,484 |
 | 400 | 1.000, 2,547 | 1.000, 4,004 |
 
-Search speed grows about 3 to 4 times with four threads for both libraries, so the gap to FAISS stays the same. Multi-thread timings on this shared server vary by 20 to 30 percent between runs. The build gains less than the search because the single-threaded first 2,000 points and the memory-bound linking do not scale as well.
+Search speed grows about 3 to 4 times with four threads for both libraries, so the gap to FAISS stays the same. Multi-thread timings on this shared server vary by 20 to 30 percent between runs. The build gains less than the search; the first 2,000 points are still inserted on one thread.
 
 ## Product quantization
 
