@@ -10,11 +10,11 @@ from numba import njit, prange
 
 @njit(cache=True, fastmath=True)
 def sqDist(vectors, i, query):
-    total = 0.0
+    total = np.float32(0.0)  # float32 sums let the compiler use 8-wide vector instructions
     for d in range(query.shape[0]):
         diff = vectors[i, d] - query[d]
         total += diff * diff
-    return total
+    return np.float64(total)
 
 
 @njit(cache=True)

@@ -4,7 +4,7 @@ An approximate nearest neighbour index written from scratch in Python and NumPy.
 
 ## Status
 
-Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.3 to 1.8 times slower than FAISS on one thread. It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, the picture is the same but recall is much lower for the same ef, and at very high recall (ef = 3,200) our index matches or passes FAISS.
+Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.0 to 1.1 times slower than FAISS on one thread on SIFT at 100,000 vectors (1.3 to 1.8 times on the other, older measurements). It is 20 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, the picture is the same but recall is much lower for the same ef, and at very high recall (ef = 3,200) our index matches or passes FAISS.
 
 ## Baseline
 
@@ -21,16 +21,16 @@ Numbers come from one 4-core server and vary a little from run to run (880 queri
 
 FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index.
 
-100,000 vectors. Build: ours 37.9 s and 61.9 MB, FAISS 21.1 s and 65.6 MB. Exact search: about 880 queries per second.
+100,000 vectors. Build: ours 26.2 s and 61.9 MB, FAISS 20.6 s and 65.6 MB. Exact search: about 880 queries per second. This table was measured after the distance loop switched to float32 sums (see below); the 1,000,000 SIFT, GloVe and four-thread tables further down were measured before that change and are slower than the current code would be.
 
 | ef | Ours: recall, queries per second | FAISS: recall, queries per second |
 |---|---|---|
-| 10 | 0.833, 13,672 | 0.783, 25,067 |
-| 20 | 0.921, 9,091 | 0.892, 16,499 |
-| 50 | 0.982, 4,552 | 0.974, 8,101 |
-| 100 | 0.997, 2,654 | 0.994, 4,590 |
-| 200 | 1.000, 1,500 | 0.999, 2,410 |
-| 400 | 1.000, 873 | 1.000, 1,290 |
+| 10 | 0.833, 23,218 | 0.783, 24,403 |
+| 20 | 0.921, 15,046 | 0.892, 15,343 |
+| 50 | 0.982, 7,258 | 0.974, 7,748 |
+| 100 | 0.997, 4,037 | 0.994, 4,458 |
+| 200 | 1.000, 2,396 | 0.999, 2,459 |
+| 400 | 1.000, 1,332 | 1.000, 1,285 |
 
 1,000,000 vectors (the full SIFT base set). Build: ours 586 s and 618.5 MB, FAISS 332 s and 656.3 MB. The raw vectors take 512 MB. Exact search: 88 queries per second.
 
@@ -119,7 +119,7 @@ Searching through codes alone is limited by the quantization error. Recall stays
 
 The pure Python version (`annindex/hnsw.py`) gives the same recall as the Numba version at every ef value but runs far slower. On 20,000 vectors at ef = 50 it handled 698 queries per second, against 4,409 for the first Numba version (6.3 times faster). Exact search was faster than the Python version at that size, because NumPy runs it as one large matrix product while the Python search takes one step at a time.
 
-Three changes made the difference, in this order. Batching the neighbour selection step in NumPy roughly halved the Python build time. Compiling the search and insert loops with Numba gave most of the gain. Turning on fast-math for the distance loop, which lets the compiler vectorize it, then nearly doubled the speed again without changing recall (build at 100,000 vectors fell from 81 s to 37 s). The Python version stays in the repo as a readable reference.
+Three changes made the difference, in this order. Batching the neighbour selection step in NumPy roughly halved the Python build time. Compiling the search and insert loops with Numba gave most of the gain. Turning on fast-math for the distance loop, which lets the compiler vectorize it, then nearly doubled the speed again without changing recall (build at 100,000 vectors fell from 81 s to 37 s). A fourth change was summing the squared differences in float32 instead of float64, so that each AVX2 instruction handles eight values instead of four plus a conversion: at 100,000 SIFT vectors and recall 0.982, search went from 4,552 to 7,258 queries per second and the build from 37.9 s to 26.2 s, with the same recall. A micro benchmark of the distance function alone showed about twice the speed. Unrolling the loop by hand with four accumulators was slower than the compiler's own vectorisation. Float32 sums lose some precision, which did not change recall here. The Python version stays in the repo as a readable reference.
 
 ## Layout
 
@@ -153,5 +153,5 @@ python -m pytest
 
 ## Possible next steps
 
-1. Hand-written SIMD distance code.
+1. Rerun the 1,000,000 SIFT, GloVe and four-thread tables with the float32 distance loop.
 2. Store the raw vectors on disk for the re-score in the compressed index.
