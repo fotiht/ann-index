@@ -12,8 +12,8 @@ ROW = re.compile(r"^(\d+)\s+([\d.]+) /\s*(\d+)\s+([\d.]+) /\s*(\d+)")
 RUNS = {
     "SIFT, 100,000 vectors": "faiss_100k.log",
     "SIFT, 1,000,000 vectors": "faiss_1m.log",
-    "GloVe, 100,000 vectors": "glove_100k.log glove_100k_high_ef.log",
-    "GloVe, 1,183,514 vectors": "glove_full.log glove_full_high_ef.log",
+    "GloVe, 100,000 vectors": "glove_100k.log",
+    "GloVe, 1,183,514 vectors": "glove_full.log",
 }
 
 
