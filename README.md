@@ -87,9 +87,9 @@ The rows for ef = 800 and above come from a second run (`results/glove_100k_high
 
 ## Threads
 
-`HNSWFast.add(data, threads=4)` and `HNSWFast.search(queries, k, ef, threads=4)` use several threads. Searching splits the queries into chunks, one per thread, and returns the same answers as one thread. Building inserts the points in batches of 64. Each batch looks for neighbours in parallel against the graph built so far and is then linked in order, so points in the same batch do not see each other. That cost almost no recall (0.981 against 0.982 at ef = 50), and the first 2,000 points go in one at a time.
+`HNSWFast.add(data, threads=4)` and `HNSWFast.search(queries, k, ef, threads=4)` use several threads. Searching splits the queries into chunks, one per thread, and returns the same answers as one thread. Building inserts the points in batches of 64. Each batch looks for neighbours in parallel against the graph built so far and is then linked in parallel, so points in the same batch do not see each other. Linking gives exactly the graph that adding the points one after another would give: each new point's own links are written on separate threads, and the links back to existing points are grouped by target and applied in node order. The graph therefore does not depend on the thread count, and `tests/test_hnsw_fast.py` checks that. That cost almost no recall (0.981 against 0.982 at ef = 50), and the first 2,000 points go in one at a time.
 
-Four threads on 100,000 vectors, same parameters as above. Build: ours 22.8 s (37 s on one thread), FAISS 6.3 s.
+Four threads on 100,000 vectors, same parameters as above. Build: ours 15 s after parallelising the linking step (two runs, 15.2 s and 14.9 s; 22.8 s in the logged run below, which linked each batch in order, and 37 s on one thread), FAISS 6.3 s. The graph is identical in both versions, so the table below still holds.
 
 | ef | Ours: recall, queries per second | FAISS: recall, queries per second |
 |---|---|---|
@@ -100,7 +100,7 @@ Four threads on 100,000 vectors, same parameters as above. Build: ours 22.8 s (3
 | 200 | 1.000, 4,413 | 0.999, 7,484 |
 | 400 | 1.000, 2,547 | 1.000, 4,004 |
 
-Search speed grows about 3 to 4 times with four threads for both libraries, so the gap to FAISS stays the same. Multi-thread timings on this shared server vary by 20 to 30 percent between runs. The build gains less than the search because linking each batch is still done in order.
+Search speed grows about 3 to 4 times with four threads for both libraries, so the gap to FAISS stays the same. Multi-thread timings on this shared server vary by 20 to 30 percent between runs. The build gains less than the search because the single-threaded first 2,000 points and the memory-bound linking do not scale as well.
 
 ## Product quantization
 
@@ -153,5 +153,5 @@ python -m pytest
 
 ## Possible next steps
 
-1. Hand-written SIMD distance code and parallel linking in the build.
+1. Hand-written SIMD distance code.
 2. Store the raw vectors on disk for the re-score in the compressed index.

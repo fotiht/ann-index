@@ -52,3 +52,11 @@ def test_threaded_build_keeps_recall_and_valid_links():
         for node in range(len(data)):
             links = index.links[layer, node, :index.counts[layer, node]]
             assert len(links) <= limit and node not in links and len(set(links)) == len(links)
+
+
+def test_build_does_not_depend_on_thread_count():
+    data = random_data(3000, 16)
+    two, four = HNSWFast(M=12, efConstruction=100), HNSWFast(M=12, efConstruction=100)
+    two.add(data, threads=2)
+    four.add(data, threads=4)
+    assert (two.links == four.links).all() and (two.counts == four.counts).all()

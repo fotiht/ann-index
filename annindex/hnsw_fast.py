@@ -162,16 +162,42 @@ def findBatch(vectors, links, counts, levels, first, size, entry, topLevel, efCo
                 ep, epDist = ids[0], dists[0]
 
 
-@njit(cache=True)
+@njit(cache=True, parallel=True)
 def linkBatch(vectors, links, counts, levels, first, size, topLevel, M, candIds, candDists, candCounts):
-    for slot in range(size):
-        node = first + slot
-        for l in range(min(levels[node], topLevel) + 1):
-            found = candCounts[slot, l]
-            limit = 2 * M if l == 0 else M
-            for other in selectNeighbours(vectors, candIds[slot, l, :found], candDists[slot, l, :found], M):
-                link(vectors, links, counts, l, node, other, limit)
-                link(vectors, links, counts, l, other, node, limit)
+    """Link the batch into the graph. The result is the same as linking the nodes one after
+    another: each new node's own links are written in parallel (no other new node touches
+    them), and the links back to existing nodes are grouped by target and applied in node
+    order, with different targets on different threads."""
+    chosen = np.empty((size, M), np.int64)
+    for l in range(topLevel + 1):
+        limit = 2 * M if l == 0 else M
+        chosenCounts = np.zeros(size, np.int64)
+        for slot in prange(size):
+            node = first + slot
+            if l <= levels[node]:
+                found = candCounts[slot, l]
+                kept = selectNeighbours(vectors, candIds[slot, l, :found], candDists[slot, l, :found], M)
+                chosen[slot, :len(kept)] = kept
+                chosenCounts[slot] = len(kept)
+                for k in range(len(kept)):
+                    links[l, node, k] = kept[k]
+                counts[l, node] = len(kept)
+        total = chosenCounts.sum()
+        keys = np.empty(total, np.int64)
+        position = 0
+        for slot in range(size):
+            for k in range(chosenCounts[slot]):
+                keys[position] = chosen[slot, k] * size + slot
+                position += 1
+        keys.sort()
+        starts = [0]
+        for i in range(1, total):
+            if keys[i] // size != keys[i - 1] // size:
+                starts.append(i)
+        starts.append(total)
+        for g in prange(len(starts) - 1):
+            for i in range(starts[g], starts[g + 1]):
+                link(vectors, links, counts, l, keys[i] // size, first + keys[i] % size, limit)
 
 
 def buildBatches(vectors, links, counts, levels, M, efConstruction, workers, batch=64, warmup=2000):
