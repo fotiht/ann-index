@@ -2,6 +2,22 @@
 
 An approximate nearest neighbour index written from scratch in Python and NumPy. It is an HNSW graph index (Malkov and Yashunin, 2016), benchmarked against exact search and against FAISS on the SIFT dataset. The goal is an honest picture of how recall, speed and memory trade off.
 
+![Recall against queries per second, SIFT and GloVe, ours and FAISS](results/recall_vs_qps.png)
+
+## Quickstart
+
+No dataset download is needed to try it. This builds the index on 10,000 random vectors and prints recall against queries per second for several values of ef:
+
+```
+pip install numpy numba pytest
+python sweep.py
+python -m pytest
+```
+
+Random vectors are an easy case. The SIFT and GloVe results below come from the commands in the Reproduce section.
+
+See [WRITEUP.md](WRITEUP.md) for what the benchmarks show and where this index loses to FAISS.
+
 ## Status
 
 Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.0 to 1.1 times slower than FAISS on one thread on SIFT at 100,000 and 1,000,000 vectors. It is 34 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, recall is much lower for the same ef, FAISS is up to 28 percent faster on the full set at low ef, and our index matches or passes it from ef = 800 up.
@@ -82,8 +98,6 @@ All 1,183,514 vectors. Build: ours 499 s and 594.5 MB, FAISS 412 s and 644.2 MB.
 GloVe is much harder than SIFT. On 100,000 vectors ef = 100 gives recall 0.875, where SIFT gave 0.997, and on the full set it takes ef = 400 to pass 0.9. The word vectors have no clear clusters, so the graph search has to visit far more points to find the true neighbours. Even so, our index at ef = 100 on the full set answers 2,721 queries per second at recall 0.804, which is 45 times faster than exact search.
 
 Against FAISS the two are close. At 100,000 vectors ours is level or ahead from ef = 20 up, and 1.8 times as fast at ef = 3,200 (149 queries per second against 83, recall 1.000 against 0.998). On the full set FAISS is ahead by up to 28 percent at low ef (ef = 10 to 400), and ours is ahead from ef = 800 (435 against 424), reaching 0.983 at 117 queries per second against 0.975 at 76 for FAISS at ef = 3,200. We have not checked why the curves cross. Our recall is also a little higher at the same ef throughout. Exact search matters here too: at 100,000 vectors it handles 865 queries per second, which is faster than either index once recall is above about 0.98 (at ef = 400 ours reaches 0.967 at 1,083, but at ef = 800 it reaches 0.989 at only 555). On the full set exact search handles 60 queries per second, so the graph index is still well ahead there.
-
-![Recall against queries per second, SIFT and GloVe, ours and FAISS](results/recall_vs_qps.png)
 
 ## Threads
 
