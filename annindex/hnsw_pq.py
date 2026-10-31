@@ -87,6 +87,13 @@ class CompressedHNSW:
         self.index = index
         self.quantizer = quantizer
         self.codes = quantizer.encode(index.vectors)
+        self.rawVectors = index.vectors
+
+    def moveVectorsToDisk(self, path):
+        """Save the raw vectors to a .npy file and read them from disk from now on, one
+        memory-mapped row at a time. Only rerank=True searches touch them."""
+        np.save(path, self.index.vectors)
+        self.rawVectors = np.load(path, mmap_mode="r")
 
     def memoryBytes(self):
         """The graph, the codes and the codebooks. The raw vectors are not counted."""
@@ -112,7 +119,7 @@ class CompressedHNSW:
         result = np.full((len(queries), k), -1, np.int64)
         for row, query in enumerate(queries):
             ids = candidates[row][candidates[row] >= 0]
-            diff = self.index.vectors[ids] - query
+            diff = self.rawVectors[ids] - query
             order = np.argsort(np.einsum("ij,ij->i", diff, diff))[:k]
             result[row, :len(order)] = ids[order]
         return result

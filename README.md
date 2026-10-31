@@ -167,4 +167,4 @@ python -m pytest
 
 ## Possible next steps
 
-1. Store the raw vectors on disk for the re-score in the compressed index.
+1. Measure the disk re-score. `CompressedHNSW.moveVectorsToDisk(path)` now keeps the raw vectors in a memory-mapped file, and a test checks that it returns the same results as the in-memory re-score, but I have not timed it.

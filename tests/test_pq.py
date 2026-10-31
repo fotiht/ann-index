@@ -41,3 +41,14 @@ def test_hnsw_search_on_codes_with_and_without_rerank():
     assert plain > 0.3 and reranked > plain
     assert (compressed.search(queries, 10, ef=100, threads=3) == compressed.search(queries, 10, ef=100)).all()
     assert compressed.memoryBytes() < index.memoryBytes()
+
+
+def test_rerank_from_disk_matches_rerank_from_memory(tmp_path):
+    data, queries = random_data(3000, 16), random_data(50, 16, seed=1)
+    index = HNSWFast(M=12, efConstruction=100)
+    index.add(data)
+    compressed = CompressedHNSW(index, ProductQuantizer(pieces=8, centroids=64, iterations=5).fit(data))
+    inMemory = compressed.search(queries, 10, ef=100, rerank=True)
+    compressed.moveVectorsToDisk(tmp_path / "vectors.npy")
+    assert isinstance(compressed.rawVectors, np.memmap)
+    assert np.array_equal(compressed.search(queries, 10, ef=100, rerank=True), inMemory)
