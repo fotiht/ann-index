@@ -7,6 +7,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      NUMBA_NUM_THREADS: 4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
