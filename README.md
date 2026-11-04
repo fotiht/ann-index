@@ -20,7 +20,7 @@ See [WRITEUP.md](WRITEUP.md) for what the benchmarks show and where this index l
 
 ## Status
 
-Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.0 to 1.1 times slower than FAISS on one thread on SIFT at 100,000 and 1,000,000 vectors. It is 34 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, recall is much lower for the same ef, FAISS is up to 28 percent faster on the full set at low ef, and our index matches or passes it from ef = 800 up.
+Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.05 to 1.1 times slower than FAISS on one thread on SIFT at 100,000 and 1,000,000 vectors. It is 34 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, recall is much lower for the same ef, FAISS is up to 28 percent faster on the full set at low ef, and our index matches or passes it from ef = 800 up.
 
 ## Baseline
 
@@ -35,7 +35,7 @@ Numbers come from one 4-core server and vary a little from run to run (880 queri
 
 ## Comparison with FAISS
 
-FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index.
+FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index. Our memory is the vectors plus the links in use (`memoryBytes`), which leaves out the unused link slots that the arrays reserve, so the two memory figures are not measured the same way and the 61.9 MB against 65.6 MB comparison is only rough.
 
 100,000 vectors. Build: ours 26.2 s and 61.9 MB, FAISS 20.6 s and 65.6 MB. Exact search: about 880 queries per second.
 
