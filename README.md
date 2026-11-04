@@ -20,7 +20,7 @@ See [WRITEUP.md](WRITEUP.md) for what the benchmarks show and where this index l
 
 ## Status
 
-Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. At equal recall our index is about 1.05 to 1.1 times slower than FAISS on one thread on SIFT at 100,000 and 1,000,000 vectors. It is 34 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the index by a factor of five at 100,000 vectors. On GloVe, a harder dataset, recall is much lower for the same ef, FAISS is up to 28 percent faster on the full set at low ef, and our index matches or passes it from ef = 800 up.
+Done: an exact baseline, HNSW in Python and in Numba, a comparison with FAISS on SIFT at 100,000 and 1,000,000 vectors, multi-threaded build and search, and product quantization. Compared at equal recall (computed from the logged curves, see the comparison below), on one thread our index runs at 1.05 to 1.19 times the speed of FAISS on SIFT at 100,000 vectors, and within about 10 percent of it either way at 1,000,000 vectors, except at recall 0.997 where FAISS is ahead. With four threads FAISS is ahead. The index is 34 times faster than exact search at 1,000,000 vectors, and product quantization shrinks the counted index (vectors and links in use) from 61.9 MB to 12.5 MB at 100,000 vectors, though the allocated memory shrinks less (see the memory note). On GloVe, a harder dataset, recall is much lower for the same ef. On the full set, at equal recall, FAISS is faster below recall 0.72 and our index is level at about 0.72 and ahead above it.
 
 ## Baseline
 
@@ -35,7 +35,7 @@ Numbers come from one 4-core server and vary a little from run to run (880 queri
 
 ## Comparison with FAISS
 
-FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index. Our memory is the vectors plus the links in use (`memoryBytes`), which leaves out the unused link slots that the arrays reserve, so the two memory figures are not measured the same way and the 61.9 MB against 65.6 MB comparison is only rough.
+FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same data and parameters (M = 16, efConstruction = 100), one thread each, 1,000 queries, k = 10. The script is `faiss_compare.py`. FAISS memory is the size of its serialized index. Our memory is the vectors plus the links in use (`memoryBytes`). The arrays reserve 2M link slots for every node on every layer, so the allocated size is larger: about 117 MB at 100,000 SIFT vectors and about 1,304 MB at 1,000,000 (5 and 6 layers with seed 0, computed from the code by `equal_recall.py`, not measured). The memory figures below count links in use only, so they are not directly comparable with the FAISS figures, and our allocated index is probably the larger of the two.
 
 100,000 vectors. Build: ours 26.2 s and 61.9 MB, FAISS 20.6 s and 65.6 MB. Exact search: about 880 queries per second.
 
@@ -59,9 +59,9 @@ FAISS `IndexHNSWFlat` against our Numba index (`annindex/hnsw_fast.py`), same da
 | 200 | 0.993, 1,622 | 0.992, 1,705 |
 | 400 | 0.997, 850 | 0.998, 898 |
 
-At the same ef our recall is a little higher. We have not checked why, but the two libraries may not do the same amount of work for the same ef, so the fair comparison is recall against speed. Judged that way, FAISS answers about 1.05 to 1.1 times as many queries per second as ours at 100,000 vectors and at 1,000,000 vectors, with our index ahead at ef = 400 at 100,000. At 1,000,000 vectors our index reaches recall 0.979 at 3,034 queries per second, 34 times faster than exact search.
+At the same ef our recall is a little higher. We have not checked why, but the two libraries may not do the same amount of work for the same ef, so the fair comparison is recall against speed. Judged that way, by interpolating each curve to the other's recall (computed from these logs by `equal_recall.py`, not re-measured), our index runs at 1.05 to 1.19 times the speed of FAISS at 100,000 vectors up to recall 0.994, and at 0.98 to 1.09 times at 1,000,000 vectors up to recall 0.993. At recall 0.997 on the 1,000,000 vector set FAISS is ahead (ours at about 0.82 times its speed). With four threads at 100,000 vectors FAISS is ahead below recall 0.99 (ours at 0.79 to 0.96 times its speed). The interpolation is linear between a few logged points, so differences of a few percent are within its error. At 1,000,000 vectors our index reaches recall 0.979 at 3,034 queries per second, 34 times faster than exact search.
 
-The remaining gap to FAISS is small. FAISS is tuned C++ with hand-vectorized distance code, while ours is Numba code with a plain float32 loop for each distance.
+On one thread there is no clear speed gap to FAISS on SIFT at equal recall. FAISS is tuned C++ with hand-vectorized distance code, while ours is Numba code with a plain float32 loop for each distance.
 
 ## GloVe, a harder dataset
 
@@ -95,7 +95,7 @@ All 1,183,514 vectors. Build: ours 499 s and 594.5 MB, FAISS 412 s and 644.2 MB.
 | 1,600 | 0.966, 228 | 0.959, 190 |
 | 3,200 | 0.983, 117 | 0.975, 76 |
 
-GloVe is much harder than SIFT. On 100,000 vectors ef = 100 gives recall 0.875, where SIFT gave 0.997, and on the full set it takes ef = 400 to pass 0.9. The word vectors have no clear clusters, so the graph search has to visit far more points to find the true neighbours. Even so, our index at ef = 100 on the full set answers 2,721 queries per second at recall 0.804, which is 45 times faster than exact search.
+GloVe is much harder than SIFT. On 100,000 vectors ef = 100 gives recall 0.875, where SIFT gave 0.997, and on the full set it takes ef = 400 to pass 0.9. One likely reason is that the word vectors have no clear clusters, so the graph search has to visit more points to find the true neighbours. I have not tested this. Even so, our index at ef = 100 on the full set answers 2,721 queries per second at recall 0.804, which is 45 times faster than exact search.
 
 Against FAISS the two are close. At 100,000 vectors ours is level or ahead from ef = 20 up, and 1.8 times as fast at ef = 3,200 (149 queries per second against 83, recall 1.000 against 0.998). On the full set FAISS is ahead by up to 28 percent at low ef (ef = 10 to 400), and ours is ahead from ef = 800 (435 against 424), reaching 0.983 at 117 queries per second against 0.975 at 76 for FAISS at ef = 3,200. We have not checked why the curves cross. Our recall is also a little higher at the same ef throughout. Exact search matters here too: at 100,000 vectors it handles 865 queries per second, which is faster than either index once recall is above about 0.98 (at ef = 400 ours reaches 0.967 at 1,083, but at ef = 800 it reaches 0.989 at only 555). On the full set exact search handles 60 queries per second, so the graph index is still well ahead there.
 
@@ -127,7 +127,7 @@ Product quantization (`annindex/pq.py`) splits each 128 dimensional vector into 
 | 16 | 12.5 MB | 0.618 | 0.986 at ef = 100 |
 | 32 | 14.1 MB | 0.756 | 0.995 at ef = 100 |
 
-Searching through codes alone is limited by the quantization error. Recall stays at 0.62 (16 pieces) and 0.76 (32 pieces) however large ef is, which matches a full scan of the same codes. Re-scoring the candidates with the raw vectors restores recall to 0.986 and 0.995, and it is still faster than the raw search (4,875 queries per second against 3,689 at ef = 100 with 16 pieces; with 32 pieces the two are level, 4,328 against 4,232) because code lookups are cheaper than 128 dimensional distances. The catch is that the raw vectors are still needed for the re-score, for example on disk, so this saves memory only if they are kept off the main memory. Full numbers for each ef value are in `results/pq_100k.log`.
+Searching through codes alone is limited by the quantization error. Recall stays at 0.62 (16 pieces) and 0.76 (32 pieces) however large ef is, which matches a full scan of the same codes. Re-scoring the candidates with the raw vectors restores recall to 0.986 and 0.995, and it is faster than the raw search at the same ef (4,875 queries per second against 3,689 at ef = 100 with 16 pieces; with 32 pieces the two are level, 4,328 against 4,232) because code lookups are cheaper than 128 dimensional distances. The catch is that the raw vectors are still needed for the re-score, for example on disk, so this saves memory only if they are kept off the main memory. At equal recall the raw search is not slower (raw ef = 50 reaches 0.981 at 5,627 queries per second, the re-score reaches 0.986 at 4,875). The memory figures above also count only the links in use. The link table is still allocated in full (about 66 MB at 100,000 vectors), and the index object keeps the raw vectors in memory even after `moveVectorsToDisk`, so the process does not shrink fivefold as the code stands. Full numbers for each ef value are in `results/pq_100k.log`.
 
 ## Speed work
 
@@ -149,6 +149,7 @@ Three changes made the difference, in this order. Batching the neighbour selecti
 - `faiss_compare.py`: our index against FAISS HNSW on the same data.
 - `plot_results.py`: recall against queries per second plots from the logs in `results/`.
 - `pq_bench.py`: recall, speed and memory with product quantization.
+- `equal_recall.py`: speed ratios against FAISS at equal recall and the allocated memory of our index, computed from the logs in `results/` (no benchmark is re-run).
 - `tests/`: checks against brute force.
 
 ## Reproduce
